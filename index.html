@@ -201,7 +201,7 @@ body.logged-out nav,body.logged-out .shell,body.logged-out #bot-fab,body.logged-
 .login-card .brand-mark{width:44px;height:44px}
 nav button.logout{font-size:13px;justify-content:center;border:1px solid #334155;margin-top:auto}
 nav button.logout+button.reset{margin-top:8px}
-body.role-employee [data-hr],body.role-employee #bot-fab,body.role-employee #bot-panel{display:none!important}
+body.role-employee [data-hr],body.role-employee .bot-who{display:none!important}
 .user .who-role{font-size:11px;color:var(--muted)}
 .logout-top{margin-left:12px}
 </style>
@@ -364,12 +364,8 @@ function makeEmployees(n) {
 function seed() {
   const employees = makeEmployees(100);
   const t = today();
-  // 62 people checked in today; the first 30 have also checked out
-  const attendance = employees.slice(0, 62).map((e, i) => ({
-    id: 'a' + i, empId: e.id, date: t,
-    inTime: '09:' + String(10 + (i % 45)).padStart(2, '0'),
-    outTime: i < 30 ? '18:' + String(i % 50).padStart(2, '0') : null
-  }));
+  // Attendance starts empty: people check in and out manually (HR can also add or correct records).
+  const attendance = [];
   const types = ['Casual', 'Sick', 'Earned', 'Unpaid'];
   const statuses = ['Pending', 'Approved', 'Rejected'];
   const reasons = ['Personal work', 'Family function', 'Medical', 'Travel', 'Festival'];
@@ -451,6 +447,7 @@ function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
     if (s && s.employees) {
+      s.attendance = (s.attendance || []).filter(a => !/^a\d{1,3}$/.test(a.id));   // drop the old auto-generated demo check-ins
       s.interviews = s.interviews || [];   // saved data from earlier versions has no interviews yet
       (s.jobs || []).forEach(j => { j.skills = j.skills || []; });
       (s.candidates || []).forEach(c => { c.skills = c.skills || []; c.source = c.source || 'Other'; c.phone = c.phone || ''; c.calls = c.calls || []; });
@@ -733,15 +730,45 @@ function attendance() {
   const history = [...state.attendance].filter(a => isHR() || a.empId === session.empId).reverse().slice(0, 20);
   return `
   <div class="panel">
+    <h3>Add or correct attendance manually</h3>
+    <form class="inline" onsubmit="return manualAttendance(event)">
+      <select name="empId" required>${state.employees.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select>
+      <input type="date" name="date" value="${t}" max="${t}" required>
+      <label class="muted">In <input type="time" name="inTime" required></label>
+      <label class="muted">Out <input type="time" name="outTime"></label>
+      <button class="btn" type="submit">Save record</button>
+    </form>
+    <p class="hint">Saving a date that already has a record updates its times. Leave Out empty if the person has not left yet.</p>
+  </div>
+  <div class="panel">
     <h3>Today <span class="muted" style="font-weight:400">${t}</span></h3>
     <table><tr><th>Employee</th><th>Status</th><th>In</th><th>Out</th><th></th></tr>${rows}</table>
   </div>
   <div class="panel">
     <h3>Recent records</h3>
-    ${history.length ? `<table><tr><th>Date</th><th>Employee</th><th>In</th><th>Out</th></tr>
-      ${history.map(a => `<tr><td>${a.date}</td><td>${esc(empName(a.empId))}</td><td>${a.inTime}</td><td>${a.outTime || '-'}</td></tr>`).join('')}
+    ${history.length ? `<table><tr><th>Date</th><th>Employee</th><th>In</th><th>Out</th><th></th></tr>
+      ${history.map(a => `<tr><td>${a.date}</td><td>${esc(empName(a.empId))}</td><td>${a.inTime}</td><td>${a.outTime || '-'}</td><td><button class="btn light" onclick="deleteAtt('${a.id}')">Delete</button></td></tr>`).join('')}
     </table>` : '<p class="muted">No attendance yet.</p>'}
   </div>`;
+}
+function manualAttendance(ev) {
+  ev.preventDefault();
+  if (!isHR()) return false;
+  const f = new FormData(ev.target);
+  const empId = f.get('empId'), date = f.get('date'), inTime = f.get('inTime'), outTime = f.get('outTime') || null;
+  if (outTime && outTime <= inTime) { toast('Out time must be after the in time.', 'error'); return false; }
+  const rec = state.attendance.find(a => a.empId === empId && a.date === date);
+  if (rec) { rec.inTime = inTime; rec.outTime = outTime; }
+  else state.attendance.push({ id: uid(), empId, date, inTime, outTime });
+  save(); toast('Attendance saved.'); render();
+  return false;
+}
+function deleteAtt(id) {
+  if (!isHR()) return;
+  askConfirm({ title: 'Delete attendance record', message: 'Delete this attendance record?', action: 'Delete' }, () => {
+    state.attendance = state.attendance.filter(a => a.id !== id);
+    save(); render();
+  });
 }
 function checkIn(empId) {
   if (!isHR() && empId !== session.empId) return;
@@ -814,22 +841,21 @@ function cancelLeave(id) {
   state.leaves = state.leaves.filter(x => x.id !== id);
   save(); render();
 }
+function submitLeave(empId, type, from, to, reason) {
+  if (to < from) return 'End date must be after the start date.';
+  const clash = state.leaves.find(l => l.empId === empId && l.status !== 'Rejected' && from <= l.to && l.from <= to);
+  if (clash) return 'This overlaps an existing ' + clash.status.toLowerCase() + ' request for the same employee.';
+  state.leaves.push({ id: uid(), empId, type, from, to, reason, status: 'Pending' });
+  save();
+  return null;
+}
 function applyLeave(ev) {
   ev.preventDefault();
   const f = new FormData(ev.target);
   if (!isHR()) f.set('empId', session.empId);
-  if (f.get('to') < f.get('from')) { toast('End date must be after the start date.', 'error'); return false; }
-  const clash = state.leaves.find(l => l.empId === f.get('empId') && l.status !== 'Rejected' &&
-    f.get('from') <= l.to && l.from <= f.get('to'));
-  if (clash) {
-    toast('This overlaps an existing ' + clash.status.toLowerCase() + ' request for the same employee.', 'error');
-    return false;
-  }
-  state.leaves.push({
-    id: uid(), empId: f.get('empId'), type: f.get('type'),
-    from: f.get('from'), to: f.get('to'), reason: f.get('reason'), status: 'Pending'
-  });
-  save(); render();
+  const err = submitLeave(f.get('empId'), f.get('type'), f.get('from'), f.get('to'), f.get('reason'));
+  if (err) { toast(err, 'error'); return false; }
+  render();
   return false;
 }
 function setLeave(id, status) {
@@ -1967,7 +1993,7 @@ function answerQuestion(raw) {
 }
 
 /* ---------- leave balance (demo entitlements per year) ---------- */
-const ENTITLEMENT = { Casual: 12, Sick: 10, Earned: 15 };
+const ENTITLEMENT = QUOTA;   // one set of leave quotas for the whole app
 function daysBetween(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000) + 1; }
 function balanceHtml(e) {
   const used = {};
@@ -1993,6 +2019,7 @@ function toggleBot() {
   }
 }
 function botPopulateWho() {
+  if (!isHR()) return;
   const sel = document.getElementById('bot-who');
   if (sel.options.length) return;
   sel.innerHTML = '<option value="">Just browsing (company-wide)</option>' +
@@ -2008,6 +2035,7 @@ function setWho(id) {
   botRenderLog();
 }
 function botRenderLog() {
+  if (!botLog.length && !isHR()) botLog.push({ from: 'bot', html: agentHelp(true) });
   if (!botLog.length) {
     botLog.push({ from: 'bot', html: '<p>Hi! I am the HRMS assistant. Choose your name above, then ask about your leave, attendance, or payroll.</p>' });
   }
@@ -2021,10 +2049,109 @@ function botSend(ev) {
   const text = input.value.trim();
   if (!text) return false;
   botLog.push({ from: 'me', html: esc(text) });
-  botLog.push({ from: 'bot', html: botAnswer(text) });
+  botLog.push({ from: 'bot', html: isHR() ? botAnswer(text) : agentAnswer(text) });
   input.value = '';
   botRenderLog();
   return false;
+}
+/* ---------- personal AI agent for employees and managers ----------
+   It only sees the signed-in person's own data (plus the team's pending leave for managers).
+   It never changes anything until the person clicks Yes. */
+let pendingAgent = null;
+function agentHelp(first) {
+  const e = emp(session.empId);
+  return `<p>${first ? 'Hi ' + esc(e ? e.name.split(' ')[0] : 'there') + '! I am your HR assistant. ' : ''}I can help with your own records. Try:</p>` + listHtml([
+    '"Check in" or "Check out"',
+    '"Apply sick leave from 2026-11-05 to 2026-11-06 because fever"',
+    '"Apply casual leave tomorrow"',
+    '"My leave balance"',
+    '"My attendance"',
+    '"My leave requests"'
+  ].concat(isManager() ? ['"Pending approvals" (your team)'] : []));
+}
+function agentPropose(kind, data, text) {
+  pendingAgent = { kind, data };
+  return `<p>${text}</p><p><button class="btn ok" onclick="agentDo(true)">Yes, do it</button> <button class="btn light" onclick="agentDo(false)">No</button></p>`;
+}
+function agentSay(html) { botLog.push({ from: 'bot', html }); botRenderLog(); }
+function agentDo(yes) {
+  const p = pendingAgent; pendingAgent = null;
+  if (!p) return agentSay('<p>Nothing to confirm right now.</p>');
+  if (!yes) return agentSay('<p>Okay, I did not change anything.</p>');
+  if (p.kind === 'checkin') { checkIn(session.empId); return agentSay(`<p>Done. You are checked in at ${nowTime()}.</p>`); }
+  if (p.kind === 'checkout') { checkOut(session.empId); return agentSay(`<p>Done. You are checked out at ${nowTime()}.</p>`); }
+  if (p.kind === 'leave') {
+    const d = p.data, err = submitLeave(session.empId, d.type, d.from, d.to, d.reason);
+    if (err) return agentSay(`<p>I could not submit it: ${esc(err)}</p>`);
+    render();
+    return agentSay(`<p>Done. Your ${esc(d.type)} leave request is submitted and waiting for approval.</p>`);
+  }
+}
+function agentDecide(id, status) {
+  const l = state.leaves.find(x => x.id === id);
+  if (!l || !canApprove(l) || l.status !== 'Pending') return agentSay('<p>That request is not available to you.</p>');
+  setLeave(id, status);
+  agentSay(`<p>${status} ${esc(empName(l.empId))}'s ${esc(l.type)} leave (${l.from} to ${l.to}).</p>`);
+}
+function agentDates(text) {
+  const iso = text.match(/\d{4}-\d{2}-\d{2}/g) || [];
+  const day = n => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
+  let from = iso[0] || null, to = iso[1] || null;
+  if (!from && /\btomorrow\b/.test(text)) from = day(1);
+  if (!from && /\btoday\b/.test(text)) from = day(0);
+  const n = text.match(/(\d+)\s*days?\b/);
+  if (from && !to && n && +n[1] > 1) { const d = new Date(from); d.setDate(d.getDate() + +n[1] - 1); to = ymd(d); }
+  return from ? { from, to: to || from } : null;
+}
+function agentAnswer(raw) {
+  const q = raw.toLowerCase().trim();
+  const me = emp(session.empId);
+  if (!me) return '<p>I cannot find your employee record.</p>';
+  const t = today();
+  // privacy: nothing about other people, pay, or ID numbers
+  const other = state.employees.some(e => e.id !== me.id && q.includes(e.name.toLowerCase()));
+  if (other || /salary|payroll|payslip|aadhaar|aadhar|\bpan\b|bank|ctc/.test(q))
+    return '<p>Sorry, I can only share your own attendance and leave. For anything else, please contact HR.</p>';
+  if (/\b(check|clock|punch)[ -]?in\b/.test(q)) {
+    const rec = state.attendance.find(a => a.empId === me.id && a.date === t);
+    if (rec) return `<p>You are already checked in today (at ${rec.inTime}).</p>`;
+    return agentPropose('checkin', {}, `Check you in now at ${nowTime()}?`);
+  }
+  if (/\b(check|clock|punch)[ -]?out\b/.test(q)) {
+    const rec = state.attendance.find(a => a.empId === me.id && a.date === t);
+    if (!rec) return '<p>You have not checked in today, so there is nothing to check out of.</p>';
+    if (rec.outTime) return `<p>You already checked out today (at ${rec.outTime}).</p>`;
+    return agentPropose('checkout', {}, `Check you out now at ${nowTime()}?`);
+  }
+  if (/\b(apply|take|request|book)\b/.test(q) && /leave|off\b|holiday/.test(q) || /\b(casual|sick|earned|unpaid)\b.*\bleave\b/.test(q) && /\b(apply|take)\b/.test(q)) {
+    const type = /sick|\bsl\b|fever|ill\b/.test(q) ? 'Sick' : /earned|privilege|\bel\b/.test(q) ? 'Earned' : /unpaid|\blop\b|loss of pay/.test(q) ? 'Unpaid' : 'Casual';
+    const dates = agentDates(q);
+    if (!dates) return '<p>Which dates? For example: "Apply sick leave from 2026-11-05 to 2026-11-06 because fever", or "Apply casual leave tomorrow".</p>';
+    if (dates.to < dates.from) return '<p>The end date is before the start date. Please check the dates.</p>';
+    const rm = raw.match(/(?:because|reason[: ]+)\s*(.+)$/i);
+    const reason = rm ? rm[1].trim() : 'Requested via assistant';
+    const days = daysBetween(dates.from, dates.to);
+    return agentPropose('leave', { type, from: dates.from, to: dates.to, reason },
+      `Apply for <b>${type}</b> leave from <b>${dates.from}</b> to <b>${dates.to}</b> (${days} day${days > 1 ? 's' : ''}). Reason: ${esc(reason)}.`);
+  }
+  if (isManager() && /pending|approv|team/.test(q)) {
+    const list = state.leaves.filter(l => l.status === 'Pending' && canApprove(l));
+    if (!list.length) return '<p>No pending leave requests from your team.</p>';
+    return `<p>${list.length} pending request${list.length > 1 ? 's' : ''} from your team:</p>` + list.map(l =>
+      `<p><b>${esc(empName(l.empId))}</b>: ${esc(l.type)}, ${l.from} to ${l.to}. ${esc(l.reason)}<br>
+       <button class="btn ok" onclick="agentDecide('${l.id}','Approved')">Approve</button> <button class="btn danger" onclick="agentDecide('${l.id}','Rejected')">Reject</button></p>`).join('');
+  }
+  if (/balance|left|remaining|how many/.test(q)) return balanceHtml(me);
+  if (/attendance|present|today|worked|hours/.test(q)) {
+    const rec = state.attendance.find(a => a.empId === me.id && a.date === t);
+    const month = state.attendance.filter(a => a.empId === me.id && a.date.startsWith(t.slice(0, 7))).length;
+    return `<p>Today (${t}): ${rec ? 'checked in at ' + rec.inTime + (rec.outTime ? ', out at ' + rec.outTime : ', not checked out yet') : 'not checked in'}.</p><p>Days present this month: <b>${month}</b>.</p>`;
+  }
+  if (/leave|request|status/.test(q)) {
+    const mine = state.leaves.filter(l => l.empId === me.id).slice(-5).reverse();
+    return mine.length ? '<p>Your latest leave requests:</p>' + listHtml(mine.map(l => `${esc(l.type)}, ${l.from} to ${l.to}: <b>${l.status}</b>`)) : '<p>You have no leave requests yet.</p>';
+  }
+  return agentHelp(false);
 }
 function botAnswer(text) {
   let a = answerQuestion(text);
@@ -2085,11 +2212,14 @@ function doLogin(ev) {
   document.getElementById('login-pass').value = '';
   document.getElementById('login-err').textContent = '';
   view = 'dashboard';
+  botLog = []; pendingAgent = null;
   applySession(); render();
   return false;
 }
 function logout() {
   session = null;
+  botLog = []; pendingAgent = null;
+  if (botOpen) toggleBot();
   sessionStorage.removeItem('hrms-session');
   applySession();
 }
