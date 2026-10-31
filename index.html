@@ -218,6 +218,25 @@ body.role-employee [data-hr],body.role-employee .bot-who{display:none!important}
 .design-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
 .design-chips button{background:var(--primary-soft);color:var(--primary);border:1px solid var(--border);padding:4px 10px;border-radius:999px;font-size:12px;cursor:pointer}
 body.logged-out #design-fab,body.logged-out #design-panel{display:none!important}
+/* attendance calendar */
+.cal-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.cal-head h3{margin:0 8px 0 0}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cal-dow{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;text-align:center;padding:4px 0}
+.cal-cell{min-height:68px;border:1px solid var(--border);border-radius:8px;padding:6px 7px;font-size:12px;background:var(--surface);cursor:pointer;text-align:left;font-family:inherit;color:var(--text);display:flex;flex-direction:column;gap:2px}
+.cal-cell .d{font-weight:600;font-size:13px}
+.cal-cell .t{font-size:11px;color:var(--muted);line-height:1.3}
+.cal-empty{border:none;background:none;cursor:default}
+.cal-off{background:var(--th-bg);color:var(--faint)}
+.cal-p{background:var(--success-soft);border-color:transparent}
+.cal-l{background:var(--primary-soft);border-color:transparent}
+.cal-w{background:var(--warn-soft);border-color:transparent}
+.cal-today .d{color:var(--primary)}
+.cal-today{box-shadow:inset 0 0 0 2px var(--primary)}
+.cal-sel{outline:2px solid var(--text);outline-offset:1px}
+.cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--muted)}
+.cal-legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--border)}
+@media(max-width:700px){.cal-cell{min-height:52px;padding:4px}.cal-cell .t{display:none}}
 /* dark mode */
 body.dark{color-scheme:dark}
 body.dark .login-card,body.dark #bot-panel,body.dark .dialog{background:var(--surface);color:var(--text)}
@@ -734,6 +753,84 @@ function do_deleteEmp(id) {
 }
 
 /* ---------- Attendance ---------- */
+/* ---------- attendance calendar ---------- */
+let calMonth = ymd(new Date()).slice(0, 7);
+let calEmp = '';          // HR only: '' means all employees
+let calDay = null;
+function calShift(n) {
+  const [y, m] = calMonth.split('-').map(Number);
+  calMonth = ymd(new Date(y, m - 1 + n, 1)).slice(0, 7); calDay = null; render();
+}
+function calToday() { calMonth = today().slice(0, 7); calDay = today(); render(); }
+function calPick(d) { calDay = calDay === d ? null : d; render(); }
+function calSetEmp(v) { calEmp = v; calDay = null; render(); }
+function leaveOn(empId, date, status) {
+  return state.leaves.find(l => l.empId === empId && l.status === status && l.from <= date && date <= l.to);
+}
+function attendanceCalendar() {
+  const [y, m] = calMonth.split('-').map(Number);
+  const days = new Date(y, m, 0).getDate(), lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const t = today(), target = isHR() ? calEmp : session.empId;
+  const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+  const recs = state.attendance.filter(a => a.date.startsWith(calMonth) && (!target || a.empId === target));
+  const byDate = {}; recs.forEach(a => (byDate[a.date] = byDate[a.date] || []).push(a));
+  let cells = '', present = 0, onLeave = 0, pending = 0;
+  for (let i = 0; i < lead; i++) cells += '<div class="cal-cell cal-empty"></div>';
+  for (let d = 1; d <= days; d++) {
+    const date = calMonth + '-' + String(d).padStart(2, '0');
+    const dow = new Date(y, m - 1, d).getDay(), weekend = dow === 0 || dow === 6, future = date > t;
+    let cls = weekend ? 'cal-off' : '', label = weekend ? 'Weekly off' : '';
+    const here = byDate[date] || [];
+    if (target) {
+      const rec = here[0];
+      if (rec) { cls = 'cal-p'; label = 'In ' + rec.inTime + (rec.outTime ? '<br>Out ' + rec.outTime : ''); present++; }
+      else if (leaveOn(target, date, 'Approved')) { cls = 'cal-l'; label = 'On leave'; onLeave++; }
+      else if (leaveOn(target, date, 'Pending')) { cls = 'cal-w'; label = 'Leave pending'; pending++; }
+    } else if (here.length) {
+      cls = 'cal-p'; label = here.length + ' present';
+    }
+    const cn = (cls + (date === t ? ' cal-today' : '') + (date === calDay ? ' cal-sel' : '')).trim();
+    cells += `<button type="button" class="cal-cell ${cn}" onclick="calPick('${date}')" title="${date}"><span class="d">${d}</span><span class="t">${label}</span></button>`;
+  }
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(n => `<div class="cal-dow">${n}</div>`).join('');
+  const picker = isHR() ? `<select onchange="calSetEmp(this.value)" aria-label="Employee"><option value="">All employees</option>${state.employees.map(e => `<option value="${e.id}" ${e.id === calEmp ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select>` : '';
+  const summary = target ? `<p class="hint">This month: <b>${present}</b> present, <b>${onLeave}</b> on approved leave, <b>${pending}</b> leave pending.</p>` : '';
+  return `
+  <div class="panel">
+    <div class="cal-head">
+      <h3>Attendance calendar</h3>
+      <button class="btn light" onclick="calShift(-1)" aria-label="Previous month">‹</button>
+      <b style="min-width:130px;text-align:center">${monthName}</b>
+      <button class="btn light" onclick="calShift(1)" aria-label="Next month">›</button>
+      <button class="btn light" onclick="calToday()">Today</button>
+      ${picker}
+    </div>
+    <div class="cal-grid">${names}${cells}</div>
+    <div class="cal-legend">
+      <span><i style="background:var(--success-soft)"></i>Present</span><span><i style="background:var(--primary-soft)"></i>On leave</span>
+      <span><i style="background:var(--warn-soft)"></i>Leave pending</span><span><i style="background:var(--th-bg)"></i>Weekly off</span><span><i></i>No record</span>
+    </div>
+    ${summary}
+    ${calendarDetail(target)}
+  </div>`;
+}
+function calendarDetail(target) {
+  if (!calDay) return '<p class="hint">Click a date to see details.</p>';
+  const d = calDay, dayRecs = state.attendance.filter(a => a.date === d && (!target || a.empId === target));
+  const title = new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (target) {
+    const r = dayRecs[0], lv = leaveOn(target, d, 'Approved') || leaveOn(target, d, 'Pending');
+    return `<div style="margin-top:14px"><h3>${title}</h3>` + (r
+      ? `<p>Checked in at <b>${r.inTime}</b>${r.outTime ? `, out at <b>${r.outTime}</b> (${hoursBetween(r.inTime, r.outTime)})` : ', not checked out'}.</p>`
+      : '<p class="muted">No attendance record for this day.</p>')
+      + (lv ? `<p>${esc(lv.type)} leave: <span class="badge ${lv.status}">${lv.status}</span> (${lv.from} to ${lv.to})</p>` : '') + '</div>';
+  }
+  const leaves = state.leaves.filter(l => l.status === 'Approved' && l.from <= d && d <= l.to);
+  return `<div style="margin-top:14px"><h3>${title}</h3>
+    <p><b>${dayRecs.length}</b> present, <b>${leaves.length}</b> on approved leave.</p>
+    ${dayRecs.length ? `<table><tr><th>Employee</th><th>In</th><th>Out</th></tr>${dayRecs.map(a => `<tr><td>${esc(empName(a.empId))}</td><td>${a.inTime}</td><td>${a.outTime || '-'}</td></tr>`).join('')}</table>` : ''}
+    ${leaves.length ? `<p class="hint">On leave: ${leaves.map(l => esc(empName(l.empId))).join(', ')}</p>` : ''}</div>`;
+}
 function myAttendance() {
   const e = emp(session.empId);
   if (!e) return '<p class="muted">Employee record not found.</p>';
@@ -763,6 +860,7 @@ function myAttendance() {
     <button class="btn ok" onclick="checkIn('${e.id}')" ${rec ? 'disabled' : ''}>Check in</button>
     <button class="btn light" onclick="checkOut('${e.id}')" ${!rec || rec.outTime ? 'disabled' : ''}>Check out</button>
   </div>
+  ${attendanceCalendar()}
   ${team}
   <div class="panel">
     <h3>My records</h3>
@@ -787,6 +885,7 @@ function attendance() {
   }).join('');
   const history = [...state.attendance].filter(a => isHR() || a.empId === session.empId).reverse().slice(0, 20);
   return `
+  ${attendanceCalendar()}
   <div class="panel">
     <h3>Add or correct attendance manually</h3>
     <form class="inline" onsubmit="return manualAttendance(event)">
