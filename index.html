@@ -379,7 +379,7 @@ function seed() {
     end.setDate(end.getDate() + (i % 3));
     return {
       id: 'l' + i, empId: employees[(i * 7) % 60].id, type: types[i % 4],
-      from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10),
+      from: ymd(start), to: ymd(end),
       reason: reasons[i % 5], status: statuses[i % 3]
     };
   });
@@ -469,7 +469,9 @@ function do_resetDemo() {
   save(); render();
 }
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function today() { return new Date().toISOString().slice(0, 10); }
+// Local calendar date (YYYY-MM-DD). The UTC ISO date is the previous day before 5:30 AM IST.
+function ymd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function today() { return ymd(new Date()); }
 function nowTime() { return new Date().toTimeString().slice(0, 5); }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function emp(id) { return state.employees.find(e => e.id === id); }
@@ -803,7 +805,7 @@ function payroll() {
 function daysAgo(n) {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return ymd(d);
 }
 function empDept(id) { return emp(id) ? emp(id).dept : '-'; }
 function jobTitle(id) { const j = state.jobs.find(x => x.id === id); return j ? j.title : '-'; }
@@ -1208,7 +1210,7 @@ function callText() {
 function daysAhead(n) {
   const d = new Date();
   d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
+  return ymd(d);
 }
 function candName(id) { const c = findCandidate(id); return c ? c.name : 'Removed candidate'; }
 function interviewPanels() {
