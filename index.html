@@ -215,6 +215,7 @@ body.role-employee [data-hr],body.role-employee #bot-fab,body.role-employee #bot
     <label for="login-role">Login as</label>
     <select id="login-role" onchange="loginRoleChanged()">
       <option value="hr">HR Admin</option>
+      <option value="manager">Manager</option>
       <option value="employee">Employee</option>
     </select>
     <div id="login-emp-wrap" style="display:none">
@@ -560,7 +561,7 @@ function render() {
     b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('page-title').textContent = TITLES[view][0];
   document.getElementById('page-sub').textContent = TITLES[view][1];
-  document.getElementById('greeting').textContent = greeting() + ', ' + (isHR() ? 'HR Admin' : (emp(session.empId) || {name: 'there'}).name);
+  document.getElementById('greeting').textContent = greeting() + ', ' + (isHR() ? 'HR Admin' : (emp(session.empId) || {name: 'there'}).name + (isManager() ? ' (Manager)' : ''));
   document.getElementById('today-date').textContent =
     new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   if (!isHR() && !EMP_VIEWS.includes(view)) { view = 'dashboard'; document.getElementById('page-title').textContent = TITLES.dashboard[0]; }
@@ -678,7 +679,45 @@ function do_deleteEmp(id) {
 }
 
 /* ---------- Attendance ---------- */
+function myAttendance() {
+  const e = emp(session.empId);
+  if (!e) return '<p class="muted">Employee record not found.</p>';
+  const t = today();
+  const rec = state.attendance.find(a => a.empId === e.id && a.date === t);
+  const mine = state.attendance.filter(a => a.empId === e.id).sort((a, b) => b.date.localeCompare(a.date));
+  const month = t.slice(0, 7);
+  const monthDays = mine.filter(a => a.date.startsWith(month)).length;
+  let team = '';
+  if (isManager()) {
+    const rows = teamOf(e.id).map(m => {
+      const r = state.attendance.find(a => a.empId === m.id && a.date === t);
+      const onLeave = state.leaves.some(l => l.empId === m.id && l.status === 'Approved' && l.from <= t && t <= l.to);
+      const st = r ? '<span class="badge Present">Present</span>' : onLeave ? '<span class="badge Pending">On leave</span>' : '<span class="badge Absent">Not in</span>';
+      return `<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.role)}</td><td>${st}</td><td>${r ? r.inTime : '-'}</td><td>${r && r.outTime ? r.outTime : '-'}</td></tr>`;
+    }).join('');
+    team = `<div class="panel"><h3>My team today <span class="muted" style="font-weight:400">${esc(e.dept)} · ${t}</span></h3>
+      <table><tr><th>Employee</th><th>Role</th><th>Status</th><th>In</th><th>Out</th></tr>${rows || '<tr><td colspan="5" class="muted">No team members.</td></tr>'}</table></div>`;
+  }
+  return `
+  <div class="cards">
+    <div class="card blue"><div class="label">Today (${t})</div><div class="num" style="font-size:20px">${rec ? 'In at ' + rec.inTime + (rec.outTime ? ', out ' + rec.outTime : '') : 'Not checked in'}</div></div>
+    <div class="card green"><div class="label">Days present this month</div><div class="num">${monthDays}</div></div>
+  </div>
+  <div class="panel">
+    <h3>My attendance</h3>
+    <button class="btn ok" onclick="checkIn('${e.id}')" ${rec ? 'disabled' : ''}>Check in</button>
+    <button class="btn light" onclick="checkOut('${e.id}')" ${!rec || rec.outTime ? 'disabled' : ''}>Check out</button>
+  </div>
+  ${team}
+  <div class="panel">
+    <h3>My records</h3>
+    ${mine.length ? `<table><tr><th>Date</th><th>In</th><th>Out</th><th>Hours</th></tr>
+      ${mine.slice(0, 31).map(a => `<tr><td>${a.date}</td><td>${a.inTime}</td><td>${fmtTime(a.outTime)}</td><td>${hoursBetween(a.inTime, a.outTime)}</td></tr>`).join('')}
+    </table>` : '<p class="muted">No records yet. Click Check in to start.</p>'}
+  </div>`;
+}
 function attendance() {
+  if (!isHR()) return myAttendance();
   const t = today();
   const rows = visibleEmps().map(e => {
     const rec = state.attendance.find(a => a.empId === e.id && a.date === t);
@@ -720,14 +759,30 @@ function checkOut(empId) {
 }
 
 /* ---------- Leave ---------- */
+const QUOTA = { Casual: 8, Sick: 7, Earned: 15 };
+function leaveRow(l, mode) {
+  let actions = '';
+  if (mode === 'approve' && l.status === 'Pending') actions = `
+    <button class="btn ok" onclick="setLeave('${l.id}','Approved')">Approve</button>
+    <button class="btn danger" onclick="setLeave('${l.id}','Rejected')">Reject</button>`;
+  if (mode === 'mine' && l.status === 'Pending') actions = `<button class="btn light" onclick="cancelLeave('${l.id}')">Cancel</button>`;
+  return `<tr>
+    <td><b>${esc(empName(l.empId))}</b></td><td>${esc(l.type)}</td><td>${l.from}</td><td>${l.to}</td><td>${leaveDays(l)}</td>
+    <td>${esc(l.reason)}</td><td><span class="badge ${l.status}">${l.status}</span></td><td>${actions}</td></tr>`;
+}
+function leaveTable(list, mode, emptyMsg) {
+  return list.length ? `<table>
+    <tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Reason</th><th>Status</th><th></th></tr>
+    ${list.map(l => leaveRow(l, mode)).join('')}</table>` : `<p class="muted">${emptyMsg}</p>`;
+}
 function leave() {
   const empOptions = visibleEmps().map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
-  const rows = [...state.leaves].filter(l => isHR() || l.empId === session.empId).reverse();
-  return `
+  const all = [...state.leaves].reverse();
+  const form = `
   <div class="panel">
     <h3>Apply for leave</h3>
     <form class="inline" onsubmit="return applyLeave(event)">
-      <select name="empId" required>${empOptions}</select>
+      <select name="empId" required ${isHR() ? '' : 'style="display:none"'}>${empOptions}</select>
       <select name="type">
         <option>Casual</option><option>Sick</option><option>Earned</option><option>Unpaid</option>
       </select>
@@ -736,21 +791,28 @@ function leave() {
       <input name="reason" placeholder="Reason" required>
       <button class="btn" type="submit">Submit request</button>
     </form>
-  </div>
-  <div class="panel">
-    <h3>Requests</h3>
-    ${rows.length ? `<table>
-      <tr><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Reason</th><th>Status</th><th></th></tr>
-      ${rows.map(l => `<tr>
-        <td><b>${esc(empName(l.empId))}</b></td><td>${esc(l.type)}</td><td>${l.from}</td><td>${l.to}</td>
-        <td>${esc(l.reason)}</td>
-        <td><span class="badge ${l.status}">${l.status}</span></td>
-        <td>${l.status === 'Pending' && isHR() ? `
-          <button class="btn ok" onclick="setLeave('${l.id}','Approved')">Approve</button>
-          <button class="btn danger" onclick="setLeave('${l.id}','Rejected')">Reject</button>` : ''}</td>
-      </tr>`).join('')}
-    </table>` : '<p class="muted">No leave requests.</p>'}
   </div>`;
+  if (isHR()) return form + `<div class="panel"><h3>Requests</h3>${leaveTable(all, 'approve', 'No leave requests.')}</div>`;
+  const mine = all.filter(l => l.empId === session.empId);
+  const used = t => mine.filter(l => l.type === t && l.status === 'Approved').reduce((n, l) => n + leaveDays(l), 0);
+  const balance = `<div class="cards">${Object.keys(QUOTA).map(t =>
+    `<div class="card"><div class="label">${t} leave left</div><div class="num">${Math.max(0, QUOTA[t] - used(t))} <span class="muted" style="font-size:13px;font-weight:400">of ${QUOTA[t]}</span></div></div>`).join('')}</div>`;
+  let approvals = '';
+  if (isManager()) {
+    const ids = new Set(teamOf(session.empId).map(e => e.id));
+    const team = all.filter(l => ids.has(l.empId));
+    const pending = team.filter(l => l.status === 'Pending');
+    approvals = `<div class="panel"><h3>Team requests awaiting my approval <span class="badge Pending">${pending.length}</span></h3>
+      ${leaveTable(pending, 'approve', 'No pending requests from your team.')}</div>
+      <div class="panel"><h3>Team leave history</h3>${leaveTable(team.filter(l => l.status !== 'Pending'), 'none', 'Nothing decided yet.')}</div>`;
+  }
+  return balance + form + approvals + `<div class="panel"><h3>My leave requests</h3>${leaveTable(mine, 'mine', 'You have not applied for leave yet.')}</div>`;
+}
+function cancelLeave(id) {
+  const l = state.leaves.find(x => x.id === id);
+  if (!l || l.empId !== session.empId || l.status !== 'Pending') return;
+  state.leaves = state.leaves.filter(x => x.id !== id);
+  save(); render();
 }
 function applyLeave(ev) {
   ev.preventDefault();
@@ -771,9 +833,9 @@ function applyLeave(ev) {
   return false;
 }
 function setLeave(id, status) {
-  if (!isHR()) return;
   const l = state.leaves.find(x => x.id === id);
-  if (l) l.status = status;
+  if (!l || !canApprove(l)) return;
+  l.status = status;
   save(); render();
 }
 
@@ -1973,22 +2035,42 @@ function botAnswer(text) {
 }
 
 /* ---------- login / roles (demo only: passwords are checked in the browser) ---------- */
-const PASSWORDS = { hr: '123', employee: '456' };
+const PASSWORDS = { hr: '123', employee: '456', manager: '789' };
 const EMP_VIEWS = ['dashboard', 'attendance', 'leave'];
 let session = null;
 try { session = JSON.parse(sessionStorage.getItem('hrms-session')); } catch (e) {}
 function isHR() { return !session || session.role === 'hr'; }
+function isManager() { return !!session && session.role === 'manager'; }
+// Manager = anyone whose job title contains Manager or Lead. Team = other active people in the same department.
+function isManagerEmp(e) { return /Manager|Lead/.test(e.role); }
+function teamOf(id) {
+  const m = emp(id);
+  return m ? state.employees.filter(e => e.dept === m.dept && e.id !== m.id && e.status === 'Active') : [];
+}
+function canApprove(l) {
+  if (isHR()) return true;
+  return isManager() && l.empId !== session.empId && teamOf(session.empId).some(e => e.id === l.empId);
+}
+function leaveDays(l) { return Math.round((new Date(l.to) - new Date(l.from)) / 86400000) + 1; }
+function fmtTime(t) { return t || '-'; }
+function hoursBetween(a, b) {
+  if (!a || !b) return '-';
+  const m = (parseInt(b.slice(0, 2)) * 60 + parseInt(b.slice(3))) - (parseInt(a.slice(0, 2)) * 60 + parseInt(a.slice(3)));
+  return m > 0 ? (m / 60).toFixed(1) + ' h' : '-';
+}
 function visibleEmps() { return isHR() ? state.employees : state.employees.filter(e => e.id === session.empId); }
 function loginRoleChanged() {
-  document.getElementById('login-emp-wrap').style.display = document.getElementById('login-role').value === 'employee' ? 'block' : 'none';
+  document.getElementById('login-emp-wrap').style.display = document.getElementById('login-role').value !== 'hr' ? 'block' : 'none';
+  fillLoginEmployees();
 }
 function fillLoginEmployees() {
-  document.getElementById('login-emp').innerHTML = state.employees.filter(e => e.status === 'Active')
+  const role = document.getElementById('login-role').value;
+  document.getElementById('login-emp').innerHTML = state.employees.filter(e => e.status === 'Active' && (role !== 'manager' || isManagerEmp(e)) && (role !== 'employee' || !isManagerEmp(e)))
     .map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
 }
 function applySession() {
   document.body.classList.toggle('logged-out', !session);
-  document.body.classList.toggle('role-employee', !!session && session.role === 'employee');
+  document.body.classList.toggle('role-employee', !!session && session.role !== 'hr');
   if (!session) { fillLoginEmployees(); return; }
   const e = isHR() ? null : emp(session.empId);
   document.getElementById('avatar').textContent = isHR() ? 'HR' : (e ? e.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'E');
@@ -1998,7 +2080,7 @@ function doLogin(ev) {
   const role = document.getElementById('login-role').value;
   const pass = document.getElementById('login-pass').value;
   if (pass !== PASSWORDS[role]) { document.getElementById('login-err').textContent = 'Wrong password. Please try again.'; return false; }
-  session = { role, empId: role === 'employee' ? document.getElementById('login-emp').value : null };
+  session = { role, empId: role !== 'hr' ? document.getElementById('login-emp').value : null };
   sessionStorage.setItem('hrms-session', JSON.stringify(session));
   document.getElementById('login-pass').value = '';
   document.getElementById('login-err').textContent = '';
@@ -2024,6 +2106,7 @@ function myDashboard() {
     <div class="card blue"><div class="label">Today</div><div class="num" style="font-size:20px">${rec ? 'In at ' + rec.inTime : 'Not checked in'}</div></div>
     <div class="card amber"><div class="label">Pending leave</div><div class="num">${count('Pending')}</div></div>
     <div class="card green"><div class="label">Approved leave</div><div class="num">${count('Approved')}</div></div>
+    ${isManager() ? `<div class="card amber"><div class="label">Team requests to approve</div><div class="num">${state.leaves.filter(l => l.status === 'Pending' && canApprove(l)).length}</div></div>` : ''}
   </div>
   <div class="panel">
     <h3>My details</h3>
@@ -2032,7 +2115,7 @@ function myDashboard() {
       <tr><th>Role</th><td>${esc(e.role)}</td></tr>
       <tr><th>Email</th><td>${esc(e.email)}</td></tr>
     </table>
-    <p class="hint">Use Attendance to check in or out, and Leave to apply for time off.</p>
+    <p class="hint">Use Attendance to check in or out, and Leave to apply for time off${isManager() ? ' and to approve your team\'s requests' : ''}.</p>
   </div>`;
 }
 
