@@ -11,6 +11,7 @@
   --primary:#0f766e; --primary-hover:#115e59; --primary-soft:#f0fdfa;
   --success:#15803d; --success-soft:#dcfce7; --warn:#b45309; --warn-soft:#fef3c7;
   --danger:#b91c1c; --danger-soft:#fee2e2; --side:#0f172a; --side-hover:#1e293b;
+  --grad-a:#14b8a6; --accent-light:#5eead4; --th-bg:#f8fafc; --input-bg:#fff; --input-border:#d6dce8;
   --radius:12px; --shadow:0 1px 2px rgba(15,23,42,.04),0 1px 3px rgba(15,23,42,.06);
 }
 *{box-sizing:border-box;margin:0;padding:0}
@@ -20,7 +21,7 @@ body{font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;back
 /* ---------- sidebar ---------- */
 nav{width:248px;background:var(--side);color:#cbd5e1;padding:22px 16px;flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
 .brand{display:flex;align-items:center;gap:12px;padding:4px 10px 22px}
-.brand-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#14b8a6,#0f766e);
+.brand-mark{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--grad-a),var(--primary));
             color:#fff;font-weight:800;display:grid;place-items:center;font-size:16px}
 .brand-name{color:#fff;font-weight:700;font-size:16px;line-height:1.2}
 .brand-sub{color:#64748b;font-size:12px}
@@ -29,9 +30,9 @@ nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;b
            padding:10px 12px;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;margin-bottom:2px;position:relative}
 nav button:hover{background:var(--side-hover);color:#fff}
 nav button.active{background:rgba(99,102,241,.18);color:#fff}
-nav button.active::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:#5eead4}
+nav button.active::before{content:"";position:absolute;left:-16px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent-light)}
 nav .dot{width:8px;height:8px;border-radius:50%;background:#475569;flex-shrink:0}
-nav button.active .dot{background:#5eead4}
+nav button.active .dot{background:var(--accent-light)}
 nav button.reset{margin-top:auto;font-size:13px;color:#fca5a5;justify-content:center;border:1px solid #334155}
 nav button.reset:hover{background:#7f1d1d;color:#fff}
 
@@ -59,7 +60,7 @@ h2 .muted{font-weight:400}
 
 /* ---------- tables ---------- */
 table{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
-th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid var(--border);white-space:nowrap}
+th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--th-bg);border-bottom:1px solid var(--border);white-space:nowrap}
 th:first-child{border-radius:8px 0 0 0} th:last-child{border-radius:0 8px 0 0}
 td{text-align:left;padding:12px;border-bottom:1px solid #eef1f6;white-space:nowrap}
 tr:hover td{background:#fafbff}
@@ -67,7 +68,7 @@ tr:last-child td{border-bottom:none}
 
 /* ---------- forms & buttons ---------- */
 form.inline{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px}
-input,select{padding:9px 12px;border:1px solid #d6dce8;border-radius:8px;font-size:13.5px;background:#fff;color:var(--text);outline:none;font-family:inherit}
+input,select{padding:9px 12px;border:1px solid var(--input-border);border-radius:8px;font-size:13.5px;background:var(--input-bg);color:var(--text);outline:none;font-family:inherit}
 input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(79,70,229,.15)}
 input.search{width:300px;margin-bottom:14px}
 button{font-family:inherit}
@@ -110,7 +111,7 @@ button.btn.light:hover{background:#f8fafc}
 
 /* ---------- floating chat widget ---------- */
 #bot-fab{display:grid;place-items:center;position:fixed;right:24px;bottom:24px;width:60px;height:60px;border-radius:50%;border:none;cursor:pointer;
-         background:linear-gradient(135deg,#14b8a6,#0f766e);color:#fff;font-size:26px;box-shadow:0 10px 25px rgba(79,70,229,.4);z-index:50}
+         background:linear-gradient(135deg,var(--grad-a),var(--primary));color:#fff;font-size:26px;box-shadow:0 10px 25px rgba(79,70,229,.4);z-index:50}
 #bot-fab:hover{transform:scale(1.05)}
 #bot-panel{position:fixed;right:24px;bottom:96px;width:380px;max-width:calc(100vw - 32px);height:560px;max-height:calc(100vh - 130px);
            background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 50px rgba(15,23,42,.25);
@@ -187,7 +188,7 @@ button.danger-solid:hover{background:#b91c1c}
 }
 
 /* ---------- login ---------- */
-#login{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0f172a,#115e59);display:none;align-items:center;justify-content:center;padding:20px}
+#login{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0f172a,var(--primary-hover));display:none;align-items:center;justify-content:center;padding:20px}
 body.logged-out #login{display:flex}
 body.logged-out nav,body.logged-out .shell,body.logged-out #bot-fab,body.logged-out #bot-panel{display:none!important}
 .login-card{background:#fff;border-radius:16px;padding:32px 30px;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
@@ -204,6 +205,40 @@ nav button.logout+button.reset{margin-top:8px}
 body.role-employee [data-hr],body.role-employee .bot-who{display:none!important}
 .user .who-role{font-size:11px;color:var(--muted)}
 .logout-top{margin-left:12px}
+
+/* ---------- design assistant ---------- */
+#design-fab{position:fixed;right:32px;bottom:96px;width:46px;height:46px;border-radius:50%;border:1px solid var(--border);background:var(--surface);color:var(--primary);cursor:pointer;display:grid;place-items:center;box-shadow:0 6px 18px rgba(15,23,42,.18);z-index:50}
+#design-fab:hover{transform:scale(1.06)}
+#design-panel{position:fixed;right:24px;bottom:152px;width:340px;max-width:calc(100vw - 32px);height:440px;max-height:calc(100vh - 180px);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 50px rgba(15,23,42,.25);display:none;flex-direction:column;overflow:hidden;z-index:60}
+#design-panel.open{display:flex}
+#design-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+#design-log .msg{padding:8px 11px;border-radius:10px;max-width:88%;font-size:13px}
+#design-log .msg.bot{background:var(--primary-soft);color:var(--text);align-self:flex-start}
+#design-log .msg.me{background:var(--primary);color:#fff;align-self:flex-end}
+.design-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-top:1px solid var(--border)}
+.design-chips button{background:var(--primary-soft);color:var(--primary);border:1px solid var(--border);padding:4px 10px;border-radius:999px;font-size:12px;cursor:pointer}
+body.logged-out #design-fab,body.logged-out #design-panel{display:none!important}
+/* dark mode */
+body.dark{color-scheme:dark}
+body.dark .login-card,body.dark #bot-panel,body.dark .dialog{background:var(--surface);color:var(--text)}
+body.dark .login-card select,body.dark .login-card input{background:var(--input-bg);color:var(--text)}
+body.dark .btn.light,body.dark button.btn.light{background:var(--border);color:var(--text)}
+body.dark tr:hover td{background:rgba(148,163,184,.08)}
+body.dark td{border-bottom-color:var(--border)}
+body.dark button.btn:not(.ok):not(.danger):not(.light):not(.danger-solid){color:#08111f}
+body.dark .menu-toggle{background:var(--surface);color:var(--text)}
+body.dark .menu-toggle span{background:var(--text)}
+body.dark button.btn.danger{background:transparent;color:#fca5a5;border-color:#7f1d1d}
+body.dark .msg.bot{background:var(--th-bg);color:var(--text)}
+body.dark .Approved,body.dark .Present,body.dark .Active{color:#86efac}
+body.dark .Pending{color:#fcd34d}
+body.dark .Rejected,body.dark .Absent,body.dark .Inactive{color:#fca5a5}
+body.dark .Scheduled{background:#0f2f2c;color:#5eead4}
+body.dark .chips button{border-color:var(--border)}
+body.dark .bot-form,body.dark .bot-who{background:var(--surface)}
+body.compact .panel{padding:12px 14px;margin-bottom:12px}
+body.compact td,body.compact th{padding-top:5px;padding-bottom:5px}
+body.compact main{padding:14px}
 </style>
 </head>
 <body class="logged-out">
@@ -287,6 +322,29 @@ body.role-employee [data-hr],body.role-employee .bot-who{display:none!important}
   <form class="bot-form" onsubmit="return botSend(event)">
     <input name="q" placeholder="Ask a question..." autocomplete="off" required>
     <button class="btn" type="submit">Send</button>
+  </form>
+</div>
+
+<button id="design-fab" onclick="toggleDesign()" title="Design assistant" aria-label="Open design assistant">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-3.9-4-7.2-9-7.2z"/><circle cx="7.5" cy="11" r="1" fill="currentColor"/><circle cx="10" cy="7.2" r="1" fill="currentColor"/><circle cx="14.5" cy="7.2" r="1" fill="currentColor"/></svg>
+</button>
+<div id="design-panel">
+  <div class="bot-head">
+    <div><b>Design assistant</b><div class="bot-sub">Change colours, theme and text size</div></div>
+    <button onclick="toggleDesign()" title="Close">×</button>
+  </div>
+  <div id="design-log"></div>
+  <div class="design-chips">
+    <button onclick="designSend('dark mode')">Dark</button><button onclick="designSend('light mode')">Light</button>
+    <button onclick="designSend('blue theme')">Blue</button><button onclick="designSend('purple theme')">Purple</button>
+    <button onclick="designSend('rose theme')">Rose</button><button onclick="designSend('orange theme')">Orange</button>
+    <button onclick="designSend('teal theme')">Teal</button><button onclick="designSend('bigger text')">Bigger text</button>
+    <button onclick="designSend('compact')">Compact</button><button onclick="designSend('undo')">Undo</button>
+    <button onclick="designSend('reset')">Reset</button>
+  </div>
+  <form class="bot-form" onsubmit="return designForm(event)">
+    <input name="q" placeholder="e.g. make it dark with a blue theme" autocomplete="off" required>
+    <button class="btn" type="submit">Go</button>
   </form>
 </div>
 
@@ -2011,6 +2069,7 @@ let currentEmpId = null;
 
 function toggleBot() {
   botOpen = !botOpen;
+  if (botOpen && typeof designOpen !== 'undefined' && designOpen) toggleDesign();
   document.getElementById('bot-panel').classList.toggle('open', botOpen);
   if (botOpen) {
     botPopulateWho();
@@ -2249,12 +2308,102 @@ function myDashboard() {
   </div>`;
 }
 
+/* ---------- design assistant: changes how the app looks, saved in this browser ---------- */
+const DESIGN_KEY = 'hrms-design';
+const ACCENTS = {
+  teal:   { p: '#0f766e', h: '#115e59', s: '#f0fdfa', a: '#14b8a6', l: '#5eead4', d: '#2dd4bf' },
+  blue:   { p: '#1d4ed8', h: '#1e40af', s: '#eff6ff', a: '#3b82f6', l: '#93c5fd', d: '#60a5fa' },
+  purple: { p: '#7e22ce', h: '#6b21a8', s: '#faf5ff', a: '#a855f7', l: '#d8b4fe', d: '#c084fc' },
+  rose:   { p: '#be123c', h: '#9f1239', s: '#fff1f2', a: '#f43f5e', l: '#fda4af', d: '#fb7185' },
+  orange: { p: '#c2410c', h: '#9a3412', s: '#fff7ed', a: '#f97316', l: '#fdba74', d: '#fb923c' }
+};
+const ACCENT_WORDS = { teal: 'teal|green|default', blue: 'blue|navy', purple: 'purple|violet|indigo', rose: 'rose|pink|red|crimson', orange: 'orange|amber|yellow|gold' };
+const DESIGN_DEFAULT = { accent: 'teal', dark: false, size: 100, compact: false, round: 12 };
+let design = (() => { try { return Object.assign({}, DESIGN_DEFAULT, JSON.parse(localStorage.getItem(DESIGN_KEY))); } catch (e) { return { ...DESIGN_DEFAULT }; } })();
+let designHistory = [];
+let designOpen = false;
+let designLog = [];
+function applyDesign() {
+  const a = ACCENTS[design.accent] || ACCENTS.teal, r = document.documentElement.style, b = document.body;
+  const set = (k, v) => r.setProperty(k, v);
+  b.classList.toggle('dark', design.dark);
+  b.classList.toggle('compact', design.compact);
+  set('--primary', design.dark ? a.d : a.p); set('--primary-hover', design.dark ? a.p : a.h);
+  set('--primary-soft', design.dark ? 'color-mix(in srgb, ' + a.p + ' 22%, #111a2c)' : a.s);
+  set('--grad-a', a.a); set('--accent-light', a.l); set('--radius', design.round + 'px');
+  const d = design.dark;
+  set('--bg', d ? '#0b1220' : '#f5f7fa'); set('--surface', d ? '#111a2c' : '#ffffff'); set('--border', d ? '#243049' : '#e5e9f2');
+  set('--text', d ? '#e2e8f0' : '#1e293b'); set('--muted', d ? '#94a3b8' : '#64748b'); set('--faint', d ? '#64748b' : '#94a3b8');
+  set('--side', d ? '#050a14' : '#0f172a'); set('--th-bg', d ? '#162033' : '#f8fafc');
+  set('--input-bg', d ? '#0f172a' : '#fff'); set('--input-border', d ? '#33415c' : '#d6dce8');
+  set('--success-soft', d ? '#14301f' : '#dcfce7'); set('--warn-soft', d ? '#3a2a0b' : '#fef3c7'); set('--danger-soft', d ? '#3b1414' : '#fee2e2');
+  document.documentElement.style.zoom = design.size === 100 ? '' : design.size / 100;
+}
+function saveDesign() { try { localStorage.setItem(DESIGN_KEY, JSON.stringify(design)); } catch (e) {} }
+function designReply(raw) {
+  const q = raw.toLowerCase();
+  const prev = { ...design };
+  const done = [];
+  if (/\b(reset|default|original|start over)\b/.test(q) && !/default size/.test(q)) {
+    design = { ...DESIGN_DEFAULT }; done.push('Back to the original look.');
+  } else if (/\bundo\b|go back|revert/.test(q)) {
+    const last = designHistory.pop();
+    if (!last) return '<p>Nothing to undo.</p>';
+    design = last; applyDesign(); saveDesign();
+    return '<p>Undone.</p>';
+  } else {
+    for (const [name, words] of Object.entries(ACCENT_WORDS)) {
+      if (new RegExp('\\b(' + words + ')\\b').test(q)) { design.accent = name; done.push('Theme colour: <b>' + name + '</b>.'); break; }
+    }
+    if (/\b(dark|night|black)\b/.test(q)) { design.dark = true; done.push('Dark mode on.'); }
+    else if (/\b(light mode|light theme|bright|day mode|white background)\b/.test(q)) { design.dark = false; done.push('Light mode on.'); }
+    if (/\b(normal size|default size|normal text)\b/.test(q)) { design.size = 100; done.push('Text size: normal.'); }
+    else if (/\b(bigger|larger|increase|zoom in|big)\b/.test(q)) { design.size = Math.min(130, design.size + 10); done.push('Text size: ' + design.size + '%.'); }
+    else if (/\b(smaller|decrease|zoom out|small)\b/.test(q)) { design.size = Math.max(85, design.size - 10); done.push('Text size: ' + design.size + '%.'); }
+    if (/\b(compact|dense|tight)\b/.test(q)) { design.compact = true; done.push('Compact spacing.'); }
+    else if (/\b(spacious|comfortable|relaxed|roomy)\b/.test(q)) { design.compact = false; done.push('Comfortable spacing.'); }
+    if (/\b(rounder|more round|rounded|pill)\b/.test(q)) { design.round = 20; done.push('Rounder corners.'); }
+    else if (/\b(square|sharp|less round)\b/.test(q)) { design.round = 4; done.push('Sharper corners.'); }
+    else if (/\bnormal corners\b/.test(q)) { design.round = 12; done.push('Normal corners.'); }
+  }
+  if (!done.length) return `<p>I can change the look of the app. Try:</p>` + listHtml(['"Dark mode"', '"Blue theme"', '"Make the text bigger"', '"Compact"', '"Rounder corners"', '"Dark mode with purple theme"', '"Undo" or "Reset"']);
+  designHistory.push(prev); if (designHistory.length > 20) designHistory.shift();
+  applyDesign(); saveDesign();
+  return '<p>' + done.join(' ') + ' Say "undo" to go back.</p>';
+}
+function designRender() {
+  if (!designLog.length) designLog.push({ from: 'bot', html: '<p>Hi! I am the design assistant. Tell me how you want the app to look, for example <b>"dark mode with a blue theme"</b>, or tap a button below. Your choice is saved on this device.</p>' });
+  const el = document.getElementById('design-log');
+  el.innerHTML = designLog.map(m => `<div class="msg ${m.from}">${m.html}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+function designSend(text) {
+  designLog.push({ from: 'me', html: esc(text) });
+  designLog.push({ from: 'bot', html: designReply(text) });
+  designRender();
+}
+function designForm(ev) {
+  ev.preventDefault();
+  const i = ev.target.q, t = i.value.trim();
+  if (t) designSend(t);
+  i.value = '';
+  return false;
+}
+function toggleDesign() {
+  designOpen = !designOpen;
+  if (designOpen && botOpen) toggleBot();
+  document.getElementById('design-panel').classList.toggle('open', designOpen);
+  if (designOpen) { designRender(); document.querySelector('#design-panel input').focus(); }
+}
+
+applyDesign();
 applySession();
 restoreNav();
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   if (document.getElementById('confirm-overlay').classList.contains('open')) closeConfirm(false);
   else if (botOpen) toggleBot();
+  else if (designOpen) toggleDesign();
 });
 render();
 </script>
