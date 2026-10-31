@@ -185,9 +185,48 @@ button.danger-solid:hover{background:#b91c1c}
   .topbar{padding:16px 20px}
   main{padding:20px}
 }
+
+/* ---------- login ---------- */
+#login{position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,#0f172a,#115e59);display:none;align-items:center;justify-content:center;padding:20px}
+body.logged-out #login{display:flex}
+body.logged-out nav,body.logged-out .shell,body.logged-out #bot-fab,body.logged-out #bot-panel{display:none!important}
+.login-card{background:#fff;border-radius:16px;padding:32px 30px;width:100%;max-width:400px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.login-card h2{font-size:22px;margin:14px 0 4px}
+.login-card .sub{color:var(--muted);margin-bottom:20px}
+.login-card label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:14px 0 6px}
+.login-card select,.login-card input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;font:inherit;background:#fff}
+.login-card select:focus,.login-card input:focus{outline:2px solid var(--primary);border-color:var(--primary)}
+.login-card .btn{width:100%;margin-top:20px;padding:11px;justify-content:center}
+.login-err{color:var(--danger);font-size:13px;min-height:18px;margin-top:10px}
+.login-card .brand-mark{width:44px;height:44px}
+nav button.logout{font-size:13px;justify-content:center;border:1px solid #334155;margin-top:auto}
+nav button.logout+button.reset{margin-top:8px}
+body.role-employee [data-hr],body.role-employee #bot-fab,body.role-employee #bot-panel{display:none!important}
+.user .who-role{font-size:11px;color:var(--muted)}
+.logout-top{margin-left:12px}
 </style>
 </head>
-<body>
+<body class="logged-out">
+<div id="login">
+  <form class="login-card" onsubmit="return doLogin(event)">
+    <div class="brand-mark">H</div>
+    <h2>HRMS Lite</h2>
+    <p class="sub">Sign in to continue</p>
+    <label for="login-role">Login as</label>
+    <select id="login-role" onchange="loginRoleChanged()">
+      <option value="hr">HR Admin</option>
+      <option value="employee">Employee</option>
+    </select>
+    <div id="login-emp-wrap" style="display:none">
+      <label for="login-emp">Employee</label>
+      <select id="login-emp"></select>
+    </div>
+    <label for="login-pass">Password</label>
+    <input id="login-pass" type="password" autocomplete="current-password" required>
+    <div class="login-err" id="login-err"></div>
+    <button class="btn" type="submit">Sign in</button>
+  </form>
+</div>
 <nav>
   <div class="brand">
     <div class="brand-mark">H</div>
@@ -195,17 +234,18 @@ button.danger-solid:hover{background:#b91c1c}
   </div>
   <div class="nav-label">Workspace</div>
   <button data-view="dashboard" onclick="setView('dashboard')"><span class="dot"></span>Dashboard</button>
-  <button data-view="employees" onclick="setView('employees')"><span class="dot"></span>Employees</button>
+  <button data-hr data-view="employees" onclick="setView('employees')"><span class="dot"></span>Employees</button>
   <button data-view="attendance" onclick="setView('attendance')"><span class="dot"></span>Attendance</button>
   <button data-view="leave" onclick="setView('leave')"><span class="dot"></span>Leave</button>
-  <button data-view="payroll" onclick="setView('payroll')"><span class="dot"></span>Payroll</button>
-  <div class="nav-label">Talent</div>
-  <button data-view="recruitment" onclick="setView('recruitment')"><span class="dot"></span>Recruitment (ATS)</button>
-  <button data-view="performance" onclick="setView('performance')"><span class="dot"></span>Performance (PMS)</button>
-  <button data-view="radar" onclick="setView('radar')"><span class="dot"></span>Retention Radar</button>
-  <div class="nav-label">Tools</div>
-  <button data-view="assistant" onclick="setView('assistant')"><span class="dot"></span>HR Assistant</button>
-  <button class="reset" onclick="resetDemo()">Reset demo data</button>
+  <button data-hr data-view="payroll" onclick="setView('payroll')"><span class="dot"></span>Payroll</button>
+  <div class="nav-label" data-hr>Talent</div>
+  <button data-hr data-view="recruitment" onclick="setView('recruitment')"><span class="dot"></span>Recruitment (ATS)</button>
+  <button data-hr data-view="performance" onclick="setView('performance')"><span class="dot"></span>Performance (PMS)</button>
+  <button data-hr data-view="radar" onclick="setView('radar')"><span class="dot"></span>Retention Radar</button>
+  <div class="nav-label" data-hr>Tools</div>
+  <button data-hr data-view="assistant" onclick="setView('assistant')"><span class="dot"></span>HR Assistant</button>
+  <button class="logout" onclick="logout()">Log out</button>
+  <button class="reset" data-hr onclick="resetDemo()">Reset demo data</button>
 </nav>
 <div class="shell">
   <header class="topbar">
@@ -215,7 +255,7 @@ button.danger-solid:hover{background:#b91c1c}
       </button>
       <div><h1 id="page-title"></h1><p id="page-sub"></p></div>
     </div>
-    <div class="user"><div class="greet"><div id="greeting"></div><span id="today-date"></span></div><div class="avatar">HR</div></div>
+    <div class="user"><div class="greet"><div id="greeting"></div><span id="today-date"></span></div><div class="avatar" id="avatar">HR</div></div>
   </header>
   <main id="app"></main>
   <footer class="foot">
@@ -518,10 +558,11 @@ function render() {
     b.classList.toggle('active', b.dataset.view === view));
   document.getElementById('page-title').textContent = TITLES[view][0];
   document.getElementById('page-sub').textContent = TITLES[view][1];
-  document.getElementById('greeting').textContent = greeting() + ', HR Admin';
+  document.getElementById('greeting').textContent = greeting() + ', ' + (isHR() ? 'HR Admin' : (emp(session.empId) || {name: 'there'}).name);
   document.getElementById('today-date').textContent =
     new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-  const views = { dashboard, employees, attendance, leave, payroll, recruitment, performance, radar: retentionView, assistant };
+  if (!isHR() && !EMP_VIEWS.includes(view)) { view = 'dashboard'; document.getElementById('page-title').textContent = TITLES.dashboard[0]; }
+  const views = { dashboard: isHR() ? dashboard : myDashboard, employees, attendance, leave, payroll, recruitment, performance, radar: retentionView, assistant };
   document.getElementById('app').innerHTML = views[view]();
 }
 
@@ -637,7 +678,7 @@ function do_deleteEmp(id) {
 /* ---------- Attendance ---------- */
 function attendance() {
   const t = today();
-  const rows = state.employees.map(e => {
+  const rows = visibleEmps().map(e => {
     const rec = state.attendance.find(a => a.empId === e.id && a.date === t);
     const action = `<button class="btn ok" onclick="checkIn('${e.id}')" ${rec ? 'disabled' : ''}>Check in</button>
                   <button class="btn light" onclick="checkOut('${e.id}')" ${!rec || rec.outTime ? 'disabled' : ''}>Check out</button>`;
@@ -648,7 +689,7 @@ function attendance() {
       <td>${rec && rec.outTime ? rec.outTime : '-'}</td>
       <td>${action}</td></tr>`;
   }).join('');
-  const history = [...state.attendance].reverse().slice(0, 20);
+  const history = [...state.attendance].filter(a => isHR() || a.empId === session.empId).reverse().slice(0, 20);
   return `
   <div class="panel">
     <h3>Today <span class="muted" style="font-weight:400">${t}</span></h3>
@@ -662,12 +703,14 @@ function attendance() {
   </div>`;
 }
 function checkIn(empId) {
+  if (!isHR() && empId !== session.empId) return;
   const t = today();
   if (state.attendance.some(a => a.empId === empId && a.date === t)) return;
   state.attendance.push({ id: uid(), empId, date: t, inTime: nowTime(), outTime: null });
   save(); render();
 }
 function checkOut(empId) {
+  if (!isHR() && empId !== session.empId) return;
   const rec = state.attendance.find(a => a.empId === empId && a.date === today() && !a.outTime);
   if (!rec) return;
   rec.outTime = nowTime();
@@ -676,8 +719,8 @@ function checkOut(empId) {
 
 /* ---------- Leave ---------- */
 function leave() {
-  const empOptions = state.employees.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
-  const rows = [...state.leaves].reverse();
+  const empOptions = visibleEmps().map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const rows = [...state.leaves].filter(l => isHR() || l.empId === session.empId).reverse();
   return `
   <div class="panel">
     <h3>Apply for leave</h3>
@@ -700,7 +743,7 @@ function leave() {
         <td><b>${esc(empName(l.empId))}</b></td><td>${esc(l.type)}</td><td>${l.from}</td><td>${l.to}</td>
         <td>${esc(l.reason)}</td>
         <td><span class="badge ${l.status}">${l.status}</span></td>
-        <td>${l.status === 'Pending' ? `
+        <td>${l.status === 'Pending' && isHR() ? `
           <button class="btn ok" onclick="setLeave('${l.id}','Approved')">Approve</button>
           <button class="btn danger" onclick="setLeave('${l.id}','Rejected')">Reject</button>` : ''}</td>
       </tr>`).join('')}
@@ -710,6 +753,7 @@ function leave() {
 function applyLeave(ev) {
   ev.preventDefault();
   const f = new FormData(ev.target);
+  if (!isHR()) f.set('empId', session.empId);
   if (f.get('to') < f.get('from')) { toast('End date must be after the start date.', 'error'); return false; }
   const clash = state.leaves.find(l => l.empId === f.get('empId') && l.status !== 'Rejected' &&
     f.get('from') <= l.to && l.from <= f.get('to'));
@@ -725,6 +769,7 @@ function applyLeave(ev) {
   return false;
 }
 function setLeave(id, status) {
+  if (!isHR()) return;
   const l = state.leaves.find(x => x.id === id);
   if (l) l.status = status;
   save(); render();
@@ -1925,6 +1970,71 @@ function botAnswer(text) {
   return a;
 }
 
+/* ---------- login / roles (demo only: passwords are checked in the browser) ---------- */
+const PASSWORDS = { hr: '123', employee: '456' };
+const EMP_VIEWS = ['dashboard', 'attendance', 'leave'];
+let session = null;
+try { session = JSON.parse(sessionStorage.getItem('hrms-session')); } catch (e) {}
+function isHR() { return !session || session.role === 'hr'; }
+function visibleEmps() { return isHR() ? state.employees : state.employees.filter(e => e.id === session.empId); }
+function loginRoleChanged() {
+  document.getElementById('login-emp-wrap').style.display = document.getElementById('login-role').value === 'employee' ? 'block' : 'none';
+}
+function fillLoginEmployees() {
+  document.getElementById('login-emp').innerHTML = state.employees.filter(e => e.status === 'Active')
+    .map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+}
+function applySession() {
+  document.body.classList.toggle('logged-out', !session);
+  document.body.classList.toggle('role-employee', !!session && session.role === 'employee');
+  if (!session) { fillLoginEmployees(); return; }
+  const e = isHR() ? null : emp(session.empId);
+  document.getElementById('avatar').textContent = isHR() ? 'HR' : (e ? e.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : 'E');
+}
+function doLogin(ev) {
+  ev.preventDefault();
+  const role = document.getElementById('login-role').value;
+  const pass = document.getElementById('login-pass').value;
+  if (pass !== PASSWORDS[role]) { document.getElementById('login-err').textContent = 'Wrong password. Please try again.'; return false; }
+  session = { role, empId: role === 'employee' ? document.getElementById('login-emp').value : null };
+  sessionStorage.setItem('hrms-session', JSON.stringify(session));
+  document.getElementById('login-pass').value = '';
+  document.getElementById('login-err').textContent = '';
+  view = 'dashboard';
+  applySession(); render();
+  return false;
+}
+function logout() {
+  session = null;
+  sessionStorage.removeItem('hrms-session');
+  applySession();
+}
+function myDashboard() {
+  const e = emp(session.empId);
+  if (!e) return '<p class="muted">Employee record not found.</p>';
+  const t = today();
+  const rec = state.attendance.find(a => a.empId === e.id && a.date === t);
+  const mine = state.leaves.filter(l => l.empId === e.id);
+  const count = st => mine.filter(l => l.status === st).length;
+  return `
+  <div class="cards">
+    <div class="card"><div class="label">Department</div><div class="num" style="font-size:20px">${esc(e.dept)}</div></div>
+    <div class="card blue"><div class="label">Today</div><div class="num" style="font-size:20px">${rec ? 'In at ' + rec.inTime : 'Not checked in'}</div></div>
+    <div class="card amber"><div class="label">Pending leave</div><div class="num">${count('Pending')}</div></div>
+    <div class="card green"><div class="label">Approved leave</div><div class="num">${count('Approved')}</div></div>
+  </div>
+  <div class="panel">
+    <h3>My details</h3>
+    <table>
+      <tr><th>Name</th><td>${esc(e.name)}</td></tr>
+      <tr><th>Role</th><td>${esc(e.role)}</td></tr>
+      <tr><th>Email</th><td>${esc(e.email)}</td></tr>
+    </table>
+    <p class="hint">Use Attendance to check in or out, and Leave to apply for time off.</p>
+  </div>`;
+}
+
+applySession();
 restoreNav();
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
